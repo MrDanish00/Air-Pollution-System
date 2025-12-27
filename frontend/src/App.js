@@ -117,6 +117,8 @@ const App = () => {
         API.getAlerts(selectedCity)
       ]);
 
+      console.log('Forecast Data from API:', forecastData); // DEBUG
+
       if (aqiData) {
         // Check if API returned an error
         if (aqiData.error) {
@@ -501,24 +503,80 @@ const App = () => {
             {
               activeTab === 'forecast' && (
                 <div className="space-y-6">
-                  <div className="bg-white rounded-lg p-6 shadow-sm">
-                    <h2 className="text-lg font-semibold mb-4 flex items-center">
+                  <div className={`${darkMode ? 'bg-gray-800' : 'bg-white'} rounded-lg p-6 shadow-sm`}>
+                    <h2 className={`text-lg font-semibold mb-4 flex items-center ${darkMode ? 'text-white' : 'text-gray-900'}`}>
                       <TrendingUp className="w-5 h-5 mr-2 text-blue-600" />
                       7-Day AQI Forecast for {selectedCity}
                     </h2>
-                    {forecast.length > 0 ? (
-                      <ResponsiveContainer width="100%" height={400}>
-                        <BarChart data={forecast}>
-                          <CartesianGrid strokeDasharray="3 3" />
-                          <XAxis dataKey="day" />
-                          <YAxis />
-                          <Tooltip />
-                          <Legend />
-                          <Bar dataKey="predicted_aqi" fill="#3b82f6" name="Predicted AQI" />
-                        </BarChart>
-                      </ResponsiveContainer>
+                    {loading ? (
+                      <div className="flex flex-col items-center justify-center py-12">
+                        <Loader2 className={`w-12 h-12 animate-spin ${darkMode ? 'text-blue-400' : 'text-blue-600'} mb-4`} />
+                        <p className={`${darkMode ? 'text-gray-400' : 'text-gray-600'}`}>Loading forecast data...</p>
+                      </div>
+                    ) : forecast.length > 0 ? (
+                      <>
+                        <ResponsiveContainer width="100%" height={400}>
+                          <LineChart data={forecast}>
+                            <CartesianGrid strokeDasharray="3 3" stroke={darkMode ? '#374151' : '#e5e7eb'} />
+                            <XAxis
+                              dataKey="date"
+                              stroke={darkMode ? '#9ca3af' : '#6b7280'}
+                              tickFormatter={(date) => {
+                                const d = new Date(date);
+                                return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                              }}
+                            />
+                            <YAxis stroke={darkMode ? '#9ca3af' : '#6b7280'} />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+                                border: `1px solid ${darkMode ? '#374151' : '#e5e7eb'}`,
+                                borderRadius: '8px'
+                              }}
+                              labelStyle={{ color: darkMode ? '#f3f4f6' : '#111827' }}
+                              labelFormatter={(date) => {
+                                const d = new Date(date);
+                                return d.toLocaleDateString('en-US', {
+                                  weekday: 'short',
+                                  year: 'numeric',
+                                  month: 'long',
+                                  day: 'numeric'
+                                });
+                              }}
+                            />
+                            <Legend />
+                            <Line type="monotone" dataKey="predicted_aqi" name="Predicted AQI" stroke="#3b82f6" strokeWidth={3} />
+                          </LineChart>
+                        </ResponsiveContainer>
+
+                        <div className="grid grid-cols-2 md:grid-cols-7 gap-3 mt-6">
+                          {forecast.map((day, index) => {
+                            const date = new Date(day.date);
+                            const formattedDate = date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                            const weekday = date.toLocaleDateString('en-US', { weekday: 'short' });
+
+                            return (
+                              <div key={index} className={`${darkMode ? 'bg-gray-700' : 'bg-gray-50'} p-4 rounded-lg text-center hover:shadow-md transition-shadow`}>
+                                <div className={`text-xs font-medium ${darkMode ? 'text-gray-400' : 'text-gray-500'} mb-1`}>{weekday}</div>
+                                <div className={`text-sm font-bold ${darkMode ? 'text-white' : 'text-gray-900'} mb-3`}>{formattedDate}</div>
+                                <div className={`text-3xl font-bold ${darkMode ? 'text-blue-400' : 'text-blue-600'} mb-2`}>
+                                  {Math.round(day.predicted_aqi)}
+                                </div>
+                                <div className={`text-xs font-medium ${darkMode ? 'text-gray-300' : 'text-gray-700'} mb-1`}>
+                                  {day.category || 'Moderate'}
+                                </div>
+                                {day.confidence && (
+                                  <div className={`text-xs ${darkMode ? 'text-gray-500' : 'text-gray-500'}`}>
+                                    {Math.round(day.confidence * 100)}%
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </>
                     ) : (
-                      <p className="text-gray-500 text-center py-8">Loading forecast data...</p>
+                      <p className={`${darkMode ? 'text-gray-400' : 'text-gray-500'} text-center py-8`}>Loading forecast data...</p>
                     )}
                   </div>
                 </div>
