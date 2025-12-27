@@ -79,3 +79,22 @@ class Alert(models.Model):
 
     def __str__(self):
         return f"{self.severity.upper()} Alert for {self.city.name}"
+
+
+class EmailSubscription(models.Model):
+    """User email subscriptions for air quality alerts"""
+    email = models.EmailField()
+    city = models.ForeignKey(City, on_delete=models.CASCADE, related_name='subscriptions')
+    is_active = models.BooleanField(default=True)
+    alert_threshold = models.IntegerField(default=150, help_text='AQI threshold to trigger alerts')
+    last_alert_sent = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'email_subscriptions'
+        ordering = ['-created_at']
+        unique_together = ['email', 'city']  # One subscription per email per city
+
+    def __str__(self):
+        return f"{self.email} subscribed to {self.city.name}"
