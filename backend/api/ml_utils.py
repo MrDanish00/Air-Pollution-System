@@ -22,7 +22,7 @@ import numpy as np
 from datetime import datetime, timedelta
 
 # Path to trained model
-MODEL_PATH = os.path.join(os.path.dirname(__file__), '../ml/aqi_model.pkl')
+MODEL_PATH = os.path.join(os.path.dirname(__file__), '../aqi_model.pkl')
 
 # Global variable to cache loaded model
 _model = None
@@ -58,7 +58,7 @@ def load_model():
     with open(MODEL_PATH, 'rb') as f:
         _model = pickle.load(f)
     
-    print(f"✅ ML Model loaded from: {MODEL_PATH}")
+    print(f"ML Model loaded from: {MODEL_PATH}")
     return _model
 
 def predict_aqi(components_dict):
@@ -95,17 +95,18 @@ def predict_aqi(components_dict):
         # Load model
         model = load_model()
         
-        # Extract features in correct order (must match training data)
-        features = np.array([[
+        # Use pandas DataFrame to preserve feature names (avoid sklearn warning)
+        import pandas as pd
+        features = pd.DataFrame([[
             components_dict.get('co', 0),
             components_dict.get('no', 0),
             components_dict.get('no2', 0),
             components_dict.get('o3', 0),
             components_dict.get('so2', 0),
-            components_dict.get('pm2_5', 0),   # Note: OpenWeather uses pm2_5 (with underscore)
+            components_dict.get('pm2_5', 0),
             components_dict.get('pm10', 0),
             components_dict.get('nh3', 0)
-        ]])
+        ]], columns=['co', 'no', 'no2', 'o3', 'so2', 'pm25', 'pm10', 'nh3'])
         
         # Make prediction
         predicted_aqi = model.predict(features)[0]
@@ -116,7 +117,7 @@ def predict_aqi(components_dict):
         return round(predicted_aqi, 1)
         
     except Exception as e:
-        print(f"❌ Error in predict_aqi: {e}")
+        print(f"Error in predict_aqi: {e}")
         # Fallback to simple PM2.5-based calculation
         from .aqi_calculator import calculate_aqi_from_pm25
         pm25 = components_dict.get('pm2_5', 0)
@@ -182,7 +183,7 @@ def predict_future_trend(current_data, days=7):
         return forecast
         
     except Exception as e:
-        print(f"❌ Error in predict_future_trend: {e}")
+        print(f"Error in predict_future_trend: {e}")
         # Return empty forecast on error
         return []
 
@@ -257,20 +258,20 @@ if __name__ == "__main__":
         # Test single prediction
         aqi = predict_aqi(test_components)
         category = get_aqi_category(aqi)
-        print(f"\n✅ Single Prediction:")
+        print(f"\nSingle Prediction:")
         print(f"   AQI: {aqi}")
         print(f"   Category: {category['category']}")
         print(f"   {category['message']}")
         
         # Test trend prediction
         forecast = predict_future_trend(test_components, days=7)
-        print(f"\n✅ 7-Day Forecast:")
+        print(f"\n7-Day Forecast:")
         for day in forecast:
             cat = get_aqi_category(day['predicted_aqi'])
             print(f"   {day['date']}: {day['predicted_aqi']} ({cat['category']}) - Confidence: {day['confidence']}")
             
     except FileNotFoundError as e:
-        print(f"\n❌ {e}")
+        print(f"\n{e}")
         print("   Run 'python ml/train_model.py' first to create the model.")
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nError: {e}")

@@ -491,7 +491,7 @@ const App = () => {
                         <YAxis />
                         <Tooltip />
                         <Legend />
-                        <Area type="monotone" dataKey="aqi" stroke="#3b82f6" fill="#93c5fd" name="AQI" />
+                        <Area type="monotone" dataKey="aqi" stroke="#8884d8" fill="#8884d8" fillOpacity={0.6} />
                       </AreaChart>
                     </ResponsiveContainer>
                   </div>
@@ -545,7 +545,7 @@ const App = () => {
                               }}
                             />
                             <Legend />
-                            <Line type="monotone" dataKey="predicted_aqi" name="Predicted AQI" stroke="#3b82f6" strokeWidth={3} />
+                            <Line type="monotone" dataKey="predicted_aqi" name="Predicted AQI" stroke="#3b82f6" strokeWidth={2} />
                           </LineChart>
                         </ResponsiveContainer>
 
@@ -614,7 +614,7 @@ const App = () => {
                           <YAxis />
                           <Tooltip />
                           <Legend />
-                          <Line type="monotone" dataKey="aqi" stroke="#3b82f6" strokeWidth={2} name="AQI" />
+                          <Line type="monotone" dataKey="aqi" stroke="#8884d8" strokeWidth={2} />
                         </LineChart>
                       </ResponsiveContainer>
                     </div>

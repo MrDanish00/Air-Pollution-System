@@ -12,7 +12,7 @@ class AQIReadingSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = AQIReading
-        fields = ['id', 'city', 'city_name', 'aqi', 'co', 'no', 'no2', 'o3', 
+        fields = ['id', 'city', 'city_name', 'aqi', 'co', 'no', 'no2', 'o3',
                  'so2', 'pm25', 'pm10', 'nh3', 'timestamp']
 
 
@@ -21,7 +21,7 @@ class PredictionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Prediction
-        fields = ['id', 'city', 'city_name', 'predicted_aqi', 'confidence_score', 
+        fields = ['id', 'city', 'city_name', 'predicted_aqi', 'confidence_score',
                  'prediction_date', 'model_version', 'created_at']
 
 
@@ -30,7 +30,7 @@ class AlertSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Alert
-        fields = ['id', 'city', 'city_name', 'severity', 'message', 
+        fields = ['id', 'city', 'city_name', 'severity', 'message',
                  'is_active', 'created_at', 'resolved_at']
 
 
@@ -39,6 +39,6 @@ class EmailSubscriptionSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = EmailSubscription
-        fields = ['id', 'email', 'city', 'city_name', 'is_active', 
+        fields = ['id', 'email', 'city', 'city_name', 'is_active',
                  'alert_threshold', 'last_alert_sent', 'created_at']
         read_only_fields = ['last_alert_sent', 'created_at']

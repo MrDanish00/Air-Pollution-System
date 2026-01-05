@@ -61,7 +61,7 @@ const EmailAlertPanel = () => {
             const data = await response.json();
 
             if (response.ok) {
-                setMessage(`✓ Successfully subscribed to ${selectedCity} alerts!`);
+                setMessage(` Successfully subscribed to ${selectedCity} alerts!`);
                 setSelectedCity('');
                 fetchSubscriptions(email);
                 setTimeout(() => setMessage(''), 3000);
@@ -89,7 +89,7 @@ const EmailAlertPanel = () => {
 
             if (response.ok) {
                 fetchSubscriptions(email);
-                setMessage(`✓ Unsubscribed from ${city}`);
+                setMessage(` Unsubscribed from ${city}`);
                 setTimeout(() => setMessage(''), 3000);
             }
         } catch (error) {
@@ -180,7 +180,7 @@ const EmailAlertPanel = () => {
                     </div>
 
                     {message && (
-                        <div className={`p-3 rounded-lg text-sm ${message.startsWith('✓') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+                        <div className={`p-3 rounded-lg text-sm ${message.startsWith('') ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
                             }`}>
                             {message}
                         </div>

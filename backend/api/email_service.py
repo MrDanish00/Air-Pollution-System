@@ -74,22 +74,28 @@ def should_send_alert(subscription, current_aqi):
     """
     
     # Check if AQI exceeds threshold
+    print(f"  Checking subscription for {subscription.email}: AQI {current_aqi} vs threshold {subscription.alert_threshold}")
     if current_aqi < subscription.alert_threshold:
+        print(f"  ❌ Skipped: AQI {current_aqi} < threshold {subscription.alert_threshold}")
         return False
     
     # Check if enough time has passed since last alert
     if subscription.last_alert_sent:
+        # TESTING MODE: Short rate limit for demonstrations
         # For hazardous (300+), allow more frequent alerts (every 6 hours)
         if current_aqi >= 300:
-            time_threshold = timedelta(hours=6)
+            time_threshold = timedelta(minutes=1)  # Was: hours=6
         # For very unhealthy/unhealthy, once per day
         else:
-            time_threshold = timedelta(hours=24)
+            time_threshold = timedelta(minutes=1)  # Was: hours=24
         
         time_since_last_alert = timezone.now() - subscription.last_alert_sent
+        print(f"  Last alert sent: {subscription.last_alert_sent}, {time_since_last_alert} ago (threshold: {time_threshold})")
         if time_since_last_alert < time_threshold:
+            print(f"  ❌ Skipped: Rate limited (sent {time_since_last_alert} ago, need {time_threshold})")
             return False
     
+    print(f"  ✅ Should send alert!")
     return True
 
 
@@ -100,11 +106,15 @@ def check_and_send_alerts(city, current_aqi, status, pm25, pm10):
     """
     from .models import EmailSubscription
     
+    print(f"📧 Checking email alerts for {city.name} (AQI: {current_aqi})")
+    
     # Get all active subscriptions for this city
     subscriptions = EmailSubscription.objects.filter(
         city=city,
         is_active=True
     )
+    
+    print(f"📋 Found {subscriptions.count()} active subscription(s) for {city.name}")
     
     alerts_sent = 0
     

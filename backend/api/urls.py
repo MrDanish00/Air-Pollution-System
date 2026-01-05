@@ -1,6 +1,6 @@
 from django.urls import path
 from .views import (
-    AQIDataView, HistoricalDataView, ForecastView, 
+    AQIDataView, HistoricalDataView, ForecastView,
     AlertsView, CitiesView, MapDataView
 )
 from .email_views import (
@@ -16,8 +16,7 @@ urlpatterns = [
     path('cities/', CitiesView.as_view(), name='cities'),
     path('map-data/', MapDataView.as_view(), name='map-data'),
     path('top-polluted/', TopPollutedCitiesView.as_view(), name='top-polluted'),
-    
-    # Email subscription endpoints
+
     path('subscribe-email/', EmailSubscribeView.as_view(), name='subscribe-email'),
     path('unsubscribe-email/', EmailUnsubscribeView.as_view(), name='unsubscribe-email'),
     path('my-subscriptions/', UserSubscriptionsView.as_view(), name='my-subscriptions'),

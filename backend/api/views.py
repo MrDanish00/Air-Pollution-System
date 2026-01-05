@@ -8,14 +8,11 @@ from .models import City, AQIReading, Prediction, Alert, EmailSubscription
 from .serializers import CitySerializer, AQIReadingSerializer, PredictionSerializer, AlertSerializer, EmailSubscriptionSerializer
 import numpy as np
 
-# 🔑 PASTE YOUR API KEY HERE!
-# To get a FREE API key, visit: https://openweathermap.org/api
-# Replace "your_api_key_here" below with your actual key:
-# ```
+
 OPENWEATHER_API_KEY="9237466d47020de0c677982c2ac6dfd6"
 OPENWEATHER_BASE_URL = 'http://api.openweathermap.org/data/2.5/air_pollution'
 
-# IQAir API - More accurate real-time AQI data
+
 IQAIR_API_KEY = "0d63563d-6b29-42bf-a5e9-ff30d611b521"
 IQAIR_BASE_URL = "http://api.airvisual.com/v2"
 
@@ -30,20 +27,15 @@ class IQAirAPIClient:
     def get_city_aqi(lat, lon):
         """
         Fetch real-time AQI from IQAir using GPS coordinates
-        Returns: dict with aqi, pm25, timestamp or None if failed
+        Returns: dict with aqi, timestamp or None if failed
+        Note: IQAir free API doesn't provide PM2.5 value, only AQI
         """
         try:
-            # IQAir free tier: nearest_city endpoint with lat/lon
-            url = f"{IQAIR_BASE_URL}/nearest_city"
-            params = {
-                'lat': lat,
-                'lon': lon,
-                'key': IQAIR_API_KEY
-            }
-            
             print(f"🌍 Fetching IQAir data for ({lat}, {lon})...")
-            response = requests.get(url, params=params, timeout=10)
+            url = f"{IQAIR_BASE_URL}/nearest_city"
+            params = {'lat': lat, 'lon': lon, 'key': IQAIR_API_KEY}
             
+            response = requests.get(url, params=params, timeout=5)
             print(f"IQAir API Status: {response.status_code}")
             
             if response.status_code == 200:
@@ -51,27 +43,31 @@ class IQAirAPIClient:
                 print(f"IQAir Response: {data}")
                 
                 if data.get('status') == 'success':
-                    current = data['data']['current']['pollution']
-                    aqi_value = current.get('aqius', 0)
-                    pm25_value = current.get('p2', {}).get('conc', 0)
+                    pollution = data['data']['current']['pollution']
+                    aqi = pollution.get('aqius')  # US AQI
                     
-                    print(f"✅ IQAir AQI: {aqi_value}, PM2.5: {pm25_value}")
-                    
-                    return {
-                        'aqi': aqi_value,
-                        'pm25': pm25_value,
-                        'timestamp': current.get('ts', ''),
-                        'source': 'iqair'
-                    }
-                else:
-                    print(f"❌ IQAir API returned non-success status: {data.get('status')}")
+                    if aqi:
+                        print(f"✅ IQAir AQI: {aqi}")
+                        return {
+                            'aqi': aqi,
+                            'timestamp': pollution.get('ts')
+                            # Note: IQAir free API doesn't provide PM2.5 value
+                        }
+            elif response.status_code == 429:
+                print(f"⚠️ IQAir rate limit reached (429)")
+                return None
             else:
-                print(f"❌ IQAir API HTTP error: {response.status_code} - {response.text[:200]}")
-            
+                print(f"❌ IQAir API HTTP error: {response.status_code} - {response.text}")
+                return None
+                
+        except requests.Timeout:
+            print(f"⏱️ IQAir API timeout")
             return None
         except Exception as e:
-            print(f"❌ IQAir API exception: {str(e)}")
+            print(f"❌ IQAir API error: {e}")
             return None
+        
+        return None
 
 class OpenWeatherAPIClient:
     """Client for OpenWeather Air Pollution API"""
@@ -114,13 +110,13 @@ class OpenWeatherAPIClient:
         """Get coordinates for a city with whitelist validation"""
         # Reject very short searches
         if len(city_name) < 4:
-            print(f"❌ City name too short: '{city_name}' (minimum 4 characters required)")
+            print(f"City name too short: '{city_name}' (minimum 4 characters required)")
             return None, None, None
         
         # Check against whitelist first
         city_lower = city_name.lower().strip()
         if city_lower not in OpenWeatherAPIClient.ALLOWED_CITIES:
-            print(f"❌ City not in allowed list: '{city_name}' (not a major city)")
+            print(f"City not in allowed list: '{city_name}' (not a major city)")
             return None, None, None
             
         geo_url = "http://api.openweathermap.org/geo/1.0/direct"
@@ -218,21 +214,15 @@ class AQIDataView(APIView):
         components = pollution_data['list'][0]['components']
         pm25 = components.get('pm2_5', 0)
         
-        print(f"🔍 OpenWeather PM2.5: {pm25}")
+        print(f"OpenWeather PM2.5: {pm25}")
         
-        # Use IQAir AQI if available (more accurate), otherwise calculate from PM2.5
         from .aqi_calculator import calculate_aqi_from_pm25
         
         if iqair_data and iqair_data.get('aqi'):
-            # Use IQAir's real-time AQI (more accurate)
             calculated_aqi = float(iqair_data['aqi'])
             data_source = 'IQAir (Real-time)'
-            print(f"✅ Using IQAir AQI: {calculated_aqi}")
-            # Use IQAir's PM2.5 if available
-            if iqair_data.get('pm25'):
-                pm25 = iqair_data['pm25']
+            print(f"Using IQAir AQI: {calculated_aqi}")
         else:
-            # Fallback to calculated AQI from PM2.5
             calculated_aqi = round(calculate_aqi_from_pm25(pm25), 1)
             data_source = 'Calculated from PM2.5'
             print(f"⚠️ IQAir unavailable, calculated AQI from PM2.5 ({pm25}): {calculated_aqi}")
@@ -422,14 +412,14 @@ class ForecastView(APIView):
                 'nh3': latest_reading.nh3
             }
         
-        print(f"🔍 Components for ML: {components}")
+        print(f"Components for ML: {components}")
         # Use ML model to predict 7-day forecast
         try:
-            print("🤖 Attempting ML prediction...")
+            print("Attempting ML prediction...")
             from .ml_utils import predict_future_trend, get_aqi_category
             
             forecast = predict_future_trend(components, days=7)
-            print(f"✅ ML forecast generated: {len(forecast)} days")
+            print(f"ML forecast generated: {len(forecast)} days")
             
             # Enrich forecast with AQI categories
             for day in forecast:
@@ -442,8 +432,8 @@ class ForecastView(APIView):
             
         except FileNotFoundError as e:
             # ML model not trained yet, return mock data WITH DATES
-            print(f"⚠️  ML model not found: {e}")
-            print("🔄 Generating mock forecast data with dates")
+            print(f"ML model not found: {e}")
+            print("Generating mock forecast data with dates")
             mock_forecast = []
             for i in range(1, 8):
                 forecast_date = (timezone.now() + timedelta(days=i)).strftime('%Y-%m-%d')
@@ -454,13 +444,13 @@ class ForecastView(APIView):
                     'category': 'Moderate',
                     'color': 'yellow'
                 })
-            print(f"📤 Returning mock forecast: {len(mock_forecast)} days")
+            print(f"Returning mock forecast: {len(mock_forecast)} days")
             return Response(mock_forecast)
         except Exception as e:
-            print(f"❌ EXCEPTION in ML forecast: {type(e).__name__}: {e}")
+            print(f"EXCEPTION in ML forecast: {type(e).__name__}: {e}")
             import traceback
             traceback.print_exc()
-            print("📤 Returning error response")
+            print("Returning error response")
             return Response({'error': 'Failed to generate forecast'}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
@@ -612,16 +602,29 @@ class MapDataView(APIView):
                             nh3=components.get('nh3', 0)
                         )
                 
+                
                 if latest_reading:
-                    # Calculate accurate AQI from PM2.5 instead of multiplying by 50
-                    from .aqi_calculator import calculate_aqi_from_pm25
-                    aqi_value = round(calculate_aqi_from_pm25(latest_reading.pm25), 1)
+                    # Try to fetch IQAir AQI for accurate real-time data
+                    iqair_data = IQAirAPIClient.get_city_aqi(city.latitude, city.longitude)
+                    
+                    if iqair_data and iqair_data.get('aqi'):
+                        # Use IQAir's real-time AQI (most accurate)
+                        aqi_value = float(iqair_data['aqi'])
+                        pm25_value = latest_reading.pm25  # Use OpenWeather PM2.5 (IQAir doesn't provide it)
+                        data_source = 'IQAir'
+                    else:
+                        # Fallback to calculated AQI from PM2.5
+                        from .aqi_calculator import calculate_aqi_from_pm25
+                        aqi_value = round(calculate_aqi_from_pm25(latest_reading.pm25), 1)
+                        pm25_value = latest_reading.pm25
+                        data_source = 'Calculated'
+                    
+                    # Determine status and color based on AQI value
                     if aqi_value <= 50:
                         status = 'Good'
                         color = 'green'
                     elif aqi_value <= 100:
                         status = 'Moderate'
-                        color = 'yellow'
                     elif aqi_value <= 150:
                         status = 'Unhealthy for Sensitive'
                         color = 'orange'
@@ -640,12 +643,13 @@ class MapDataView(APIView):
                         'country': city.country,
                         'latitude': city.latitude,
                         'longitude': city.longitude,
-                        'aqi': round(aqi_value, 2),
+                        'aqi': round(aqi_value, 1),
                         'status': status,
                         'color': color,
-                        'pm25': round(latest_reading.pm25, 2),
+                        'pm25': round(pm25_value, 2),
                         'pm10': round(latest_reading.pm10, 2),
-                        'timestamp': latest_reading.timestamp.isoformat()
+                        'timestamp': latest_reading.timestamp.isoformat(),
+                        'source': data_source
                     })
                     
             except Exception as e:

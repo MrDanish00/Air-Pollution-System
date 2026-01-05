@@ -29,9 +29,9 @@ const createColoredIcon = (color) => {
 
     const svgIcon = `
     <svg width="32" height="45" viewBox="0 0 32 45" xmlns="http://www.w3.org/2000/svg">
-      <path d="M16 0C7.163 0 0 7.163 0 16c0 11 16 29 16 29s16-18 16-29c0-8.837-7.163-16-16-16z" 
-            fill="${colorMap[color] || colorMap.green}" 
-            stroke="white" 
+      <path d="M16 0C7.163 0 0 7.163 0 16c0 11 16 29 16 29s16-18 16-29c0-8.837-7.163-16-16-16z"
+            fill="${colorMap[color] || colorMap.green}"
+            stroke="white"
             stroke-width="2"/>
       <circle cx="16" cy="16" r="6" fill="white"/>
     </svg>
