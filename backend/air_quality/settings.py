@@ -114,6 +114,6 @@ EMAIL_PORT = 587
 EMAIL_USE_TLS = True
 EMAIL_HOST_USER = 'airguard00@gmail.com'
 EMAIL_HOST_PASSWORD = os.environ.get('EMAIL_HOST_PASSWORD', '')  # Read from .env file
-DEFAULT_FROM_EMAIL = 'Air Quality Monitor <airguard00@gmail.com>'
+DEFAULT_FROM_EMAIL = 'AirGuard <airguard00@gmail.com>'
 
 

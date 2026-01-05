@@ -81,13 +81,12 @@ def should_send_alert(subscription, current_aqi):
     
     # Check if enough time has passed since last alert
     if subscription.last_alert_sent:
-        # TESTING MODE: Short rate limit for demonstrations
         # For hazardous (300+), allow more frequent alerts (every 6 hours)
         if current_aqi >= 300:
-            time_threshold = timedelta(minutes=1)  # Was: hours=6
-        # For very unhealthy/unhealthy, once per day
+            time_threshold = timedelta(hours=6)
+        # For very unhealthy/unhealthy, once per day (24 hours)
         else:
-            time_threshold = timedelta(minutes=1)  # Was: hours=24
+            time_threshold = timedelta(hours=24)
         
         time_since_last_alert = timezone.now() - subscription.last_alert_sent
         print(f"  Last alert sent: {subscription.last_alert_sent}, {time_since_last_alert} ago (threshold: {time_threshold})")

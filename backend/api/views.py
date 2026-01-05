@@ -21,15 +21,36 @@ class IQAirAPIClient:
     Client for IQAir API (free tier)
     Provides: Real-time AQI and PM2.5 data (more accurate than OpenWeather)
     Free tier limitations: GPS coordinates required, 10,000 calls/month
+    
+    IMPORTANT: Implements caching to prevent rate limiting
     """
+    
+    # Cache with 10-minute TTL to prevent excessive API calls
+    _cache = {}
+    _cache_ttl = 600  # 10 minutes in seconds
+    
+    @staticmethod
+    def _get_cache_key(lat, lon):
+        """Generate cache key from coordinates (rounded to 2 decimals)"""
+        return f"{round(lat, 2)}_{round(lon, 2)}"
     
     @staticmethod
     def get_city_aqi(lat, lon):
         """
-        Fetch real-time AQI from IQAir using GPS coordinates
+        Fetch real-time AQI from IQAir using GPS coordinates with caching
         Returns: dict with aqi, timestamp or None if failed
         Note: IQAir free API doesn't provide PM2.5 value, only AQI
         """
+        from datetime import datetime, timedelta
+        
+        # Check cache first
+        cache_key = IQAirAPIClient._get_cache_key(lat, lon)
+        if cache_key in IQAirAPIClient._cache:
+            cached_data, cache_time = IQAirAPIClient._cache[cache_key]
+            if datetime.now() - cache_time < timedelta(seconds=IQAirAPIClient._cache_ttl):
+                print(f"📦 Using cached IQAir data for ({lat}, {lon})")
+                return cached_data
+        
         try:
             print(f"🌍 Fetching IQAir data for ({lat}, {lon})...")
             url = f"{IQAIR_BASE_URL}/nearest_city"
@@ -40,7 +61,6 @@ class IQAirAPIClient:
             
             if response.status_code == 200:
                 data = response.json()
-                print(f"IQAir Response: {data}")
                 
                 if data.get('status') == 'success':
                     pollution = data['data']['current']['pollution']
@@ -48,16 +68,20 @@ class IQAirAPIClient:
                     
                     if aqi:
                         print(f"✅ IQAir AQI: {aqi}")
-                        return {
+                        result = {
                             'aqi': aqi,
                             'timestamp': pollution.get('ts')
-                            # Note: IQAir free API doesn't provide PM2.5 value
                         }
+                        # Cache the result
+                        IQAirAPIClient._cache[cache_key] = (result, datetime.now())
+                        return result
             elif response.status_code == 429:
-                print(f"⚠️ IQAir rate limit reached (429)")
+                print(f"⚠️ IQAir rate limit reached (429) - using fallback")
+                # Don't make more calls, cache the None result temporarily
+                IQAirAPIClient._cache[cache_key] = (None, datetime.now())
                 return None
             else:
-                print(f"❌ IQAir API HTTP error: {response.status_code} - {response.text}")
+                print(f"❌ IQAir API HTTP error: {response.status_code}")
                 return None
                 
         except requests.Timeout:
@@ -297,6 +321,71 @@ class AQIDataView(APIView):
                 print(f"Sent {alerts_sent} email alert(s) for {city.name} (AQI: {aqi_value})")
 
 
+class AQIStatsView(APIView):
+    """Get min/max AQI statistics for a city"""
+    
+    def get(self, request):
+        city_name = request.query_params.get('city', 'Lahore')
+        hours = int(request.query_params.get('hours', 24))  # Default: last 24 hours
+        
+        try:
+            city = City.objects.get(name=city_name)
+        except City.DoesNotExist:
+            return Response({'error': 'City not found'}, status=status.HTTP_404_NOT_FOUND)
+        
+        # Get readings from the specified time period
+        start_time = timezone.now() - timedelta(hours=hours)
+        readings = AQIReading.objects.filter(
+            city=city,
+            timestamp__gte=start_time
+        ).order_by('timestamp')
+        
+        if readings.count() == 0:
+            return Response({
+                'error': 'No data available for this city',
+                'period_hours': hours
+            }, status=status.HTTP_404_NOT_FOUND)
+        
+        from .aqi_calculator import calculate_aqi_from_pm25
+        
+        # Calculate AQI for all readings and find min/max
+        max_aqi = 0
+        min_aqi = float('inf')
+        max_reading = None
+        min_reading = None
+        
+        for reading in readings:
+            calculated_aqi = round(calculate_aqi_from_pm25(reading.pm25), 1)
+            
+            if calculated_aqi > max_aqi:
+                max_aqi = calculated_aqi
+                max_reading = reading
+            
+            if calculated_aqi < min_aqi:
+                min_aqi = calculated_aqi
+                min_reading = reading
+        
+        return Response({
+            'city': city_name,
+            'period_hours': hours,
+            'max_aqi': {
+                'value': round(max_aqi, 1),
+                'timestamp': max_reading.timestamp.isoformat(),
+                'time_display': max_reading.timestamp.strftime('%b %d, %I:%M %p'),
+                'pm25': round(max_reading.pm25, 2),
+                'pm10': round(max_reading.pm10, 2)
+            },
+            'min_aqi': {
+                'value': round(min_aqi, 1),
+                'timestamp': min_reading.timestamp.isoformat(),
+                'time_display': min_reading.timestamp.strftime('%b %d, %I:%M %p'),
+                'pm25': round(min_reading.pm25, 2),
+                'pm10': round(min_reading.pm10, 2)
+            },
+            'total_readings': readings.count()
+        })
+
+
 class HistoricalDataView(APIView):
     """Get historical AQI data"""
     
@@ -496,6 +585,71 @@ class CitiesView(APIView):
         return Response(serializer.data)
 
 
+class CitiesView(APIView):
+    """Get list of available cities"""
+    
+    def get(self, request):
+        cities = City.objects.filter(is_active=True).values('name', 'country', 'latitude', 'longitude')
+        return Response(list(cities))
+
+
+class CitiesFilteredView(APIView):
+    """Get cities filtered by AQI range"""
+    
+    def get(self, request):
+        min_aqi = int(request.query_params.get('min_aqi', 0))
+        max_aqi = int(request.query_params.get('max_aqi', 500))
+        
+        from .aqi_calculator import calculate_aqi_from_pm25
+        
+        filtered_cities = []
+        
+        for city in City.objects.filter(is_active=True):
+            latest_reading = AQIReading.objects.filter(city=city).order_by('-timestamp').first()
+            
+            if latest_reading:
+                # Calculate AQI from PM2.5
+                aqi_value = round(calculate_aqi_from_pm25(latest_reading.pm25), 1)
+                
+                # Filter by AQI range
+                if min_aqi <= aqi_value <= max_aqi:
+                    # Determine status and color
+                    if aqi_value <= 50:
+                        status = 'Good'
+                        color = '#10b981'  # green
+                    elif aqi_value <= 100:
+                        status = 'Moderate'
+                        color = '#f59e0b'  # yellow
+                    elif aqi_value <= 150:
+                        status = 'Unhealthy for Sensitive'
+                        color = '#f97316'  # orange
+                    elif aqi_value <= 200:
+                        status = 'Unhealthy'
+                        color = '#ef4444'  # red
+                    elif aqi_value <= 300:
+                        status = 'Very Unhealthy'
+                        color = '#a855f7'  # purple
+                    else:
+                        status = 'Hazardous'
+                        color = '#7f1d1d'  # darkred
+                    
+                    filtered_cities.append({
+                        'name': city.name,
+                        'country': city.country,
+                        'aqi': aqi_value,
+                        'status': status,
+                        'color': color,
+                        'pm25': round(latest_reading.pm25, 2),
+                        'pm10': round(latest_reading.pm10, 2),
+                        'timestamp': latest_reading.timestamp.isoformat()
+                    })
+        
+        # Sort by AQI descending
+        filtered_cities.sort(key=lambda x: x['aqi'], reverse=True)
+        
+        return Response(filtered_cities)
+
+
 class MapDataView(APIView):
     """Get AQI data for multiple cities for map visualization"""
     
@@ -604,20 +758,12 @@ class MapDataView(APIView):
                 
                 
                 if latest_reading:
-                    # Try to fetch IQAir AQI for accurate real-time data
-                    iqair_data = IQAirAPIClient.get_city_aqi(city.latitude, city.longitude)
-                    
-                    if iqair_data and iqair_data.get('aqi'):
-                        # Use IQAir's real-time AQI (most accurate)
-                        aqi_value = float(iqair_data['aqi'])
-                        pm25_value = latest_reading.pm25  # Use OpenWeather PM2.5 (IQAir doesn't provide it)
-                        data_source = 'IQAir'
-                    else:
-                        # Fallback to calculated AQI from PM2.5
-                        from .aqi_calculator import calculate_aqi_from_pm25
-                        aqi_value = round(calculate_aqi_from_pm25(latest_reading.pm25), 1)
-                        pm25_value = latest_reading.pm25
-                        data_source = 'Calculated'
+                    # For map view: Use calculated AQI only (faster, no API limits)
+                    # Users can see IQAir data when clicking individual cities
+                    from .aqi_calculator import calculate_aqi_from_pm25
+                    aqi_value = round(calculate_aqi_from_pm25(latest_reading.pm25), 1)
+                    pm25_value = latest_reading.pm25
+                    data_source = 'Calculated'  # For map view, always use calculated
                     
                     # Determine status and color based on AQI value
                     if aqi_value <= 50:

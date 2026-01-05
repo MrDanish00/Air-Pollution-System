@@ -18,19 +18,9 @@ class TopPollutedCitiesView(APIView):
             latest_reading = AQIReading.objects.filter(city=city).order_by('-timestamp').first()
             
             if latest_reading and city.latitude and city.longitude:
-                # Try to get IQAir AQI (most accurate)
-                iqair_data = IQAirAPIClient.get_city_aqi(city.latitude, city.longitude)
-                
-                if iqair_data and iqair_data.get('aqi'):
-                    # Use IQAir's real-time AQI
-                    aqi_value = float(iqair_data['aqi'])
-                    pm25_value = latest_reading.pm25  # Use OpenWeather PM2.5 (IQAir doesn't provide it)
-                    data_source = 'IQAir'
-                else:
-                    # Fallback to calculated AQI from PM2.5
-                    aqi_value = round(calculate_aqi_from_pm25(latest_reading.pm25), 1)
-                    pm25_value = latest_reading.pm25
-                    data_source = 'Calculated'
+                # Use calculated AQI for top cities (prevents rate limiting)
+                aqi_value = round(calculate_aqi_from_pm25(latest_reading.pm25), 1)
+                pm25_value = latest_reading.pm25
                 
                 cities_with_readings.append({
                     'city': city.name,
@@ -39,7 +29,7 @@ class TopPollutedCitiesView(APIView):
                     'pm25': round(pm25_value, 2),
                     'pm10': round(latest_reading.pm10, 2),
                     'timestamp': latest_reading.timestamp.isoformat(),
-                    'source': data_source
+                    'source': 'Calculated'
                 })
         
         # Sort by AQI descending and get top 10
