@@ -4,8 +4,13 @@ from rest_framework import status
 from django.utils import timezone
 from datetime import timedelta
 import requests
-from .models import City, AQIReading, Prediction, Alert, EmailSubscription
-from .serializers import CitySerializer, AQIReadingSerializer, PredictionSerializer, AlertSerializer, EmailSubscriptionSerializer
+from .models import City, AQIReading, Prediction, Alert, EmailSubscription, UserProfile, Subscription
+from .serializers import (
+    CitySerializer, AQIReadingSerializer, PredictionSerializer, 
+    AlertSerializer, EmailSubscriptionSerializer, UserProfileSerializer, SubscriptionSerializer
+)
+from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import permission_classes
 import numpy as np
 
 
@@ -605,6 +610,10 @@ class CitiesFilteredView(APIView):
         filtered_cities = []
         
         for city in City.objects.filter(is_active=True):
+            # Skip cities with invalid/incomplete names (less than 3 characters)
+            if len(city.name) < 3:
+                continue
+                
             latest_reading = AQIReading.objects.filter(city=city).order_by('-timestamp').first()
             
             if latest_reading:
@@ -803,3 +812,68 @@ class MapDataView(APIView):
                 continue
         
         return Response(map_data)
+class UserProfileView(APIView):
+    """Get or update user profile"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        try:
+            profile = user.profile
+        except UserProfile.DoesNotExist:
+            profile = UserProfile.objects.create(user=user)
+        
+        serializer = UserProfileSerializer(profile)
+        return Response(serializer.data)
+
+    def put(self, request):
+        user = request.user
+        try:
+            profile = user.profile
+        except UserProfile.DoesNotExist:
+            profile = UserProfile.objects.create(user=user)
+            
+        serializer = UserProfileSerializer(profile, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+class UserSubscriptionsView(APIView):
+    """Manage user subscriptions"""
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        subscriptions = Subscription.objects.filter(user=request.user, is_active=True)
+        serializer = SubscriptionSerializer(subscriptions, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        city_name = request.data.get('city')
+        try:
+            city = City.objects.get(name=city_name)
+        except City.DoesNotExist:
+            return Response({'error': 'City not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        subscription, created = Subscription.objects.get_or_create(
+            user=request.user,
+            city=city,
+            defaults={'is_active': True}
+        )
+        
+        if not created and not subscription.is_active:
+            subscription.is_active = True
+            subscription.save()
+            
+        return Response({'message': f'Subscribed to {city.name}', 'city': city.name})
+
+    def delete(self, request):
+        city_name = request.query_params.get('city')
+        try:
+            city = City.objects.get(name=city_name)
+            subscription = Subscription.objects.get(user=request.user, city=city)
+            subscription.delete()
+            return Response({'message': f'Unsubscribed from {city.name}'})
+        except (City.DoesNotExist, Subscription.DoesNotExist):
+            return Response({'error': 'Subscription not found'}, status=status.HTTP_404_NOT_FOUND)

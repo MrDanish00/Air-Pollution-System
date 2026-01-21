@@ -1,10 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, Area, AreaChart } from 'recharts';
-import { AlertCircle, Wind, Droplets, ThermometerSun, Activity, MapPin, Bell, TrendingUp, Search, RefreshCw, Map as MapIcon, Moon, Sun, Clock, Loader2 } from 'lucide-react';
+import { AlertCircle, Wind, Droplets, ThermometerSun, Activity, MapPin, Bell, TrendingUp, Search, RefreshCw, Map as MapIcon, Moon, Sun, Clock, Loader2, User } from 'lucide-react';
 import MapView from './MapView';
 import EmailAlertPanel from './EmailAlertPanel';
 import TopPollutedCities from './TopPollutedCities';
 import CitiesBrowser from './CitiesBrowser';
+import { AuthProvider, useAuth } from './context/AuthContext';
+import LoginPage from './pages/LoginPage';
+import SignupPage from './pages/SignupPage';
+import ProfilePage from './pages/ProfilePage';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -99,13 +103,22 @@ const getHealthAdvice = (aqi) => {
   return "Health warnings of emergency conditions. Everyone should avoid outdoor activities.";
 };
 
-const App = () => {
+const AppContent = () => {
+  const { user, isAuthenticated, loading: authLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
+  const [authView, setAuthView] = useState('login'); // login, signup, profile
 
   // Debug: Log when activeTab changes
   useEffect(() => {
     console.log('🔖 Active tab changed to:', activeTab);
   }, [activeTab]);
+
+  // Redirect to profile on successfull login
+  useEffect(() => {
+    if (isAuthenticated && authView === 'login') {
+      setAuthView('profile');
+    }
+  }, [isAuthenticated, authView]);
   const [darkMode, setDarkMode] = useState(false);
   const [selectedCity, setSelectedCity] = useState(null);  // Start with no city selected
   const [searchCity, setSearchCity] = useState('');
@@ -257,6 +270,33 @@ const App = () => {
     setShowSuggestions(value.length > 0);
   };
 
+  const handleSubscribe = async () => {
+    if (!isAuthenticated) {
+      setAuthView('login');
+      setActiveTab('login');
+      return;
+    }
+    const token = localStorage.getItem('token');
+    try {
+      const response = await fetch('http://localhost:8000/api/auth/subscriptions/', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({ city: selectedCity })
+      });
+      if (response.ok) {
+        alert(`Subscribed to ${selectedCity} successfully!`);
+      } else {
+        alert('Failed to subscribe or already subscribed.');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('Error subscribing to city.');
+    }
+  };
+
   const searchFilteredCities = searchCity.length > 0
     ? popularCities.filter(city =>
       city.toLowerCase().includes(searchCity.toLowerCase())
@@ -264,6 +304,44 @@ const App = () => {
     : [];
 
   const aqiInfo = currentAQI ? getAQIStatus(currentAQI.aqi) : { status: 'Loading...', color: 'bg-gray-500' };
+
+  if (activeTab === 'profile') {
+    return (
+      <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <header className={`${darkMode ? 'bg-gradient-to-r from-gray-800 to-gray-900' : 'bg-gradient-to-r from-blue-600 to-blue-800'} text-white shadow-lg`}>
+          <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
+            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
+              <Wind className="w-8 h-8" />
+              <h1 className="text-3xl font-bold">Air Quality Monitor</h1>
+            </div>
+            <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-lg bg-white/10">{darkMode ? <Sun /> : <Moon />}</button>
+          </div>
+        </header>
+        <ProfilePage onBack={() => setActiveTab('dashboard')} />
+      </div>
+    );
+  }
+
+  if (activeTab === 'login') {
+    return (
+      <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <header className={`${darkMode ? 'bg-gradient-to-r from-gray-800 to-gray-900' : 'bg-gradient-to-r from-blue-600 to-blue-800'} text-white shadow-lg`}>
+          <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
+            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
+              <Wind className="w-8 h-8" />
+              <h1 className="text-3xl font-bold">Air Quality Monitor</h1>
+            </div>
+            <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-lg bg-white/10">{darkMode ? <Sun /> : <Moon />}</button>
+          </div>
+        </header>
+        {authView === 'login' ? (
+          <LoginPage onSwitchToSignup={() => setAuthView('signup')} onBack={() => setActiveTab('dashboard')} />
+        ) : (
+          <SignupPage onSwitchToLogin={() => setAuthView('login')} onBack={() => setActiveTab('dashboard')} />
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
@@ -286,6 +364,23 @@ const App = () => {
               >
                 {darkMode ? <Sun className="w-6 h-6" /> : <Moon className="w-6 h-6" />}
               </button>
+
+              {isAuthenticated ? (
+                <button
+                  onClick={() => setActiveTab('profile')}
+                  className="px-4 py-2 bg-white/10 hover:bg-white/20 rounded-lg font-medium transition-colors flex items-center gap-2"
+                >
+                  <User className="w-5 h-5" />
+                  <span>{user?.username}</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => { setActiveTab('login'); setAuthView('login'); }}
+                  className="px-4 py-2 bg-white text-blue-600 rounded-lg font-bold hover:bg-blue-50 transition-colors"
+                >
+                  Sign In
+                </button>
+              )}
               <button
                 onClick={loadData}
                 className="p-2 rounded-lg hover:bg-gray-100 relative"
@@ -469,6 +564,15 @@ const App = () => {
                     </div>
                   </div>
                 </div>
+
+                <button
+                  onClick={handleSubscribe}
+                  className={`px-4 py-2 rounded-lg font-medium transition-colors flex items-center gap-2 ${darkMode ? 'bg-blue-600 hover:bg-blue-700 text-white' : 'bg-blue-100 hover:bg-blue-200 text-blue-800'
+                    }`}
+                >
+                  <Bell className="w-4 h-4" />
+                  Subscribe
+                </button>
               </div>
             </div>
 
@@ -944,5 +1048,12 @@ const App = () => {
     </div >
   );
 };
+
+
+const App = () => (
+  <AuthProvider>
+    <AppContent />
+  </AuthProvider>
+);
 
 export default App;

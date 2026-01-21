@@ -98,3 +98,31 @@ class EmailSubscription(models.Model):
 
     def __str__(self):
         return f"{self.email} subscribed to {self.city.name}"
+
+
+class UserProfile(models.Model):
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name='profile')
+    phone_number = models.CharField(max_length=20, blank=True, null=True)
+    receive_email_alerts = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    def __str__(self):
+        return f"Profile for {self.user.username}"
+
+
+class Subscription(models.Model):
+    """Authenticated user subscription to city alerts"""
+    user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='subscriptions')
+    city = models.ForeignKey(City, on_delete=models.CASCADE)
+    is_active = models.BooleanField(default=True)
+    alert_threshold = models.IntegerField(default=150, help_text='AQI threshold to trigger alerts')
+    alert_interval_hours = models.IntegerField(default=24, help_text='Hours between alerts (e.g., 6, 12, 24)')
+    last_alert_sent = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ('user', 'city')
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.city.name}"

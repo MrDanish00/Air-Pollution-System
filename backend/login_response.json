@@ -1,0 +1,11 @@
+{
+  "access": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ0b2tlbl90eXBlIjoiYWNjZXNzIiwiZXhwIjoxNzY5MDE3MTUxLCJpYXQiOjE3NjkwMTM1NTEsImp0aSI6ImIwZDZjYjliM2U0MjQwZTNiNWEwMWI0NDUwMjBhMGFmIiwidXNlcl9pZCI6IjYifQ.n3OTUhXi4Hz4ppprtIDaRzbBYqzCIXTABOuDuW-8KRs",
+  "refresh": "",
+  "user": {
+    "pk": 6,
+    "username": "debug_qHDQ",
+    "email": "debug_qhdq@example.com",
+    "first_name": "",
+    "last_name": ""
+  }
+}
