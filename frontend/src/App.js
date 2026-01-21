@@ -9,6 +9,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import SignupPage from './pages/SignupPage';
 import ProfilePage from './pages/ProfilePage';
+import ComparisonPage from './pages/ComparisonPage';
 
 const API_BASE = 'http://localhost:8000/api';
 
@@ -343,6 +344,23 @@ const AppContent = () => {
     );
   }
 
+  if (activeTab === 'compare') {
+    return (
+      <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
+        <header className={`${darkMode ? 'bg-gradient-to-r from-gray-800 to-gray-900' : 'bg-gradient-to-r from-blue-600 to-blue-800'} text-white shadow-lg`}>
+          <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
+            <div className="flex items-center space-x-3 cursor-pointer" onClick={() => setActiveTab('dashboard')}>
+              <Wind className="w-8 h-8" />
+              <h1 className="text-3xl font-bold">Air Quality Monitor</h1>
+            </div>
+            <button onClick={() => setDarkMode(!darkMode)} className="p-2 rounded-lg bg-white/10">{darkMode ? <Sun /> : <Moon />}</button>
+          </div>
+        </header>
+        <ComparisonPage onBack={() => setActiveTab('dashboard')} />
+      </div>
+    );
+  }
+
   return (
     <div className={`min-h-screen ${darkMode ? 'bg-gray-900' : 'bg-gray-50'}`}>
       {/* Header */}
@@ -447,7 +465,7 @@ const AppContent = () => {
       <nav className={`${darkMode ? 'bg-gray-800 border-gray-700' : 'bg-white'} border-b`}>
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex space-x-8">
-            {['dashboard', 'cities', 'map', 'alerts', 'pollution', 'forecast', 'analytics', 'health'].map(tab => (
+            {['dashboard', 'cities', 'map', 'compare', 'alerts', 'pollution', 'forecast', 'analytics', 'health'].map(tab => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}

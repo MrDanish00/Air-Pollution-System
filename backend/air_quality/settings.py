@@ -175,3 +175,6 @@ ACCOUNT_USERNAME_REQUIRED = True
 ACCOUNT_AUTHENTICATION_METHOD = 'username_email'
 
 
+
+EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+

@@ -152,7 +152,7 @@ class OpenWeatherAPIClient:
         params = {'q': city_name, 'limit': 1, 'appid': OPENWEATHER_API_KEY}
         
         try:
-            response = requests.get(geo_url, params=params)
+            response = requests.get(geo_url, params=params, timeout=10)
             response.raise_for_status()
             data = response.json()
             
@@ -194,7 +194,7 @@ class OpenWeatherAPIClient:
         params = {'lat': lat, 'lon': lon, 'appid': OPENWEATHER_API_KEY}
         
         try:
-            response = requests.get(url, params=params)
+            response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
             return response.json()
         except Exception as e:
